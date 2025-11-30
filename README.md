@@ -79,9 +79,53 @@ ______________________________________________________________________
 
 ## 📦 Estrutura do Projeto
 
-sorte_na_mao_app/ ├── backend/ │ ├── main.py # Aplicação FastAPI │ ├── game_generator.py # Lógica de geração de jogos │ ├── mega_statistics.py # Análise estatística │ ├── data/ │ │ └── Mega-Sena.xlsx # Base de dados │ └── venv/ # Ambiente virtual Python │ ├── frontend/ │ ├── public/ │ │ ├── index.html │ │ └── favicon.ico │ ├── src/ │ │ ├── pages/ │ │ │ ├── PaginaInicial.js │ │ │ ├── Gerador.js │ │ │ ├── SeletorEstatisticas.js │ │ │ ├── ResultadosEstatisticas.js │ │ │ ├── Configuracoes.js │ │ │ └── Sobre.js │ │ ├── App.js │ │ └── index.js │ ├── package.json │ └── node_modules/ │ └── README.md
+```text
+sorte_na_mao_app/
+│
+├── backend/
+│   ├── main.py                 # Aplicação FastAPI
+│   ├── game_generator.py       # Lógica de geração de jogos
+│   ├── mega_statistics.py      # Análise estatística
+│   ├── data/
+│   │   └── Mega-Sena.xlsx      # Base de dados
+│   └── venv/                   # Ambiente virtual Python
+│
+├── frontend/
+│   ├── public/
+│   │   ├── index.html
+│   │   └── favicon.ico
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── PaginaInicial.js
+│   │   │   ├── Gerador.js
+│   │   │   ├── SeletorEstatisticas.js
+│   │   │   ├── ResultadosEstatisticas.js
+│   │   │   ├── Configuracoes.js
+│   │   │   └── Sobre.js
+│   │   ├── App.js
+│   │   └── index.js
+│   ├── package.json
+│   └── node_modules/
+│
+└── README.md
+```
 
-- -- ## 🚀 Instalação e Execução ### Pré-requisitos - Python 3.12+ - Node.js 18+ - npm ou yarn ### 1. Clone o repositório \`\`\`bash git clone <url-do-repositorio> cd sorte_na_mao_app
+---
+
+## 🚀 Instalação e Execução
+
+### Pré-requisitos
+
+- Python 3.12+
+- Node.js 18+
+- npm ou yarn
+
+### 1. Clone o repositório
+
+```bash
+git clone https://github.com/LelloTereciani/sorte-na-mao.git
+cd sorte-na-mao
+```
 
 2.Configure o Backend
    bash
