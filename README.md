@@ -224,12 +224,19 @@ Interesses: Web3, Python, Ciência de Dados, Machine Learning, IA.
 Para questões sobre o projeto, abra uma issue no repositório.
 
 🎯 Roadmap Futuro
+
 Integração com API oficial da Caixa
+
 Análise de quadrantes e padrões
+
 Histórico de jogos salvos
+
 Notificações de resultados
+
 Modo escuro
+
 Aplicativo mobile (React Native)
+
 © 2025 Sorte na Mão - Desenvolvido por Wesley
 
 🍀 Boa sorte!
