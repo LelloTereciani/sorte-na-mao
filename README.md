@@ -197,23 +197,34 @@ O frontend estará rodando em: <http://localhost:3000>
    O arquivo Excel deve conter as seguintes colunas (nas 8 primeiras colunas):
 
 Concurso Data Dezena1 Dezena2 Dezena3 Dezena4 Dezena5 Dezena6
+
 1 11/03/1996 4 5 30 33 41 52
+
 2 13/03/1996 10 34 46 47 49 52
+
 Data no formato DD/MM/YYYY
+
 Dezenas de 1 a 60
+
 Fonte oficial: Loterias Caixa
 
 🎨 Tema Visual
+
 Cor principal: Verde Mega-Sena (#1E8449)
+
 Layout responsivo: Desktop e Mobile
+
 Design moderno: Material-UI components
+
 🤝 Contribuição
+
 Este é um projeto educacional. Sugestões e melhorias são bem-vindas!
 
 📜 Licença
 Este projeto é de código aberto para fins educacionais.
 
 👨‍💻 Desenvolvedor
+
 Wesley Rodrigues Tereciani - Desenvolvedor
 
 Formado em Tecnologia em Sistemas de Informação.
