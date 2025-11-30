@@ -27,7 +27,7 @@ ______________________________________________________________________
   - Números atrasados
   - Distribuição equilibrada
   - Aleatório puro
-- Configuração por orçamento ou quantidade de jogos
+- Configuração por orçamento
 - Números fixos (dezenas favoritas)
 - Supressão de quadrantes
 - Escolha de 6 a 20 dezenas por jogo
@@ -214,13 +214,11 @@ Este é um projeto educacional. Sugestões e melhorias são bem-vindas!
 Este projeto é de código aberto para fins educacionais.
 
 👨‍💻 Desenvolvedor
-Wesley
+Wesley Rodrigues Tereciani - Desenvolvedor
 
-Policial Militar de São Paulo | Desenvolvedor em formação
+Formado em Tecnologia em Sistemas de Informação.
 
-Especializado em setor jurídico, formado em Tecnologia em Sistemas de Informação.
-
-Interesses: Web3, Python, Ciência de Dados, Machine Learning, Psicologia Positiva.
+Interesses: Web3, Python, Ciência de Dados, Machine Learning, IA.
 
 📞 Suporte
 Para questões sobre o projeto, abra uma issue no repositório.
