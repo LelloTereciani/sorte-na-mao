@@ -1,0 +1,22 @@
+
+/* Garante scroll suave em mobile */
+html, body, #root {
+  height: 100%;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+body {
+  overflow-y: auto !important;
+  position: relative;
+}
+
+/* Remove qualquer bloqueio de scroll */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Garante que MUI não bloqueia scroll */
+.MuiBox-root {
+  -webkit-overflow-scrolling: touch;
+}
