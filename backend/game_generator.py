@@ -416,6 +416,8 @@ class GameGenerator:
             generated_games = set()
             
             for _ in range(num_games):
+                game = None  # ✅ Inicializa para evitar unbound error
+                
                 if strategy == 'quadrant_suppression':
                     game = self._quadrant_suppression_strategy(analysis_range, numbers_per_game, suppressed_quadrants)
                 elif strategy == 'cycle_analysis':
@@ -424,8 +426,13 @@ class GameGenerator:
                     game = self._linear_regression_strategy(analysis_range, numbers_per_game)
                 elif strategy == 'clustering_kmeans':
                     game = self._clustering_kmeans_strategy(analysis_range, numbers_per_game)
+                else:
+                    raise ValueError(f"Estratégia avançada desconhecida: {strategy}")
                 
-                generated_games.add(tuple(sorted(game)))
+                if game is not None:  # ✅ Valida antes de usar
+                    generated_games.add(tuple(sorted(game)))
+                else:
+                    raise RuntimeError(f"Falha ao gerar jogo com estratégia {strategy}")
             
             print(f"✅ {len(generated_games)} jogos gerados com técnica avançada!")
             
