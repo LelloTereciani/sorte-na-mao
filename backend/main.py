@@ -65,6 +65,7 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "https://sorte-na-mao-frontend.onrender.com",
+        "http://sorte-na-mao-frontend.onrender.com",  
         "*"  # Remove em produção se quiser mais segurança
     ],
     allow_credentials=True,
