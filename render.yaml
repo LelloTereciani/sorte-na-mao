@@ -1,0 +1,29 @@
+services:
+  # Backend API
+  - type: web
+    name: sorte-na-mao-backend
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+    
+  # Frontend React
+  - type: web
+    name: sorte-na-mao-frontend
+    env: static
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: build
+    envVars:
+      - key: REACT_APP_API_URL
+        value: https://sorte-na-mao-backend.onrender.com/api
+        # ⚠️ AJUSTE O NOME DO SERVIÇO SE NECESSÁRIO

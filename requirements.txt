@@ -1,0 +1,9 @@
+fastapi==0.123.0
+uvicorn[standard]==0.38.0
+pandas==2.3.3
+openpyxl==3.1.5
+reportlab==4.4.5
+python-multipart==0.0.20
+scikit-learn==1.3.2       # Machine Learning (KMeans)
+numpy==2.3.5
+pydantic==2.12.5
