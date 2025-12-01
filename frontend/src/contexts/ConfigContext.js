@@ -13,7 +13,7 @@ export const useConfig = () => {
 export function ConfigProvider({ children }) {
   const [ticketPrice, setTicketPrice] = useState(() => {
     const saved = localStorage.getItem('megasena_ticket_price');
-    return saved ? parseFloat(saved) : 5.00;
+    return saved ? parseFloat(saved) : 6.00;
   });
 
   useEffect(() => {
