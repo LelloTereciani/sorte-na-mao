@@ -13,13 +13,14 @@ services:
         value: 3.12.0
     
   # Frontend React
-  - type: static
+  - type: web
     name: sorte-na-mao-frontend
+    runtime: node
     plan: free
     branch: main
     rootDir: frontend
     buildCommand: npm install && npm run build
-    publishPath: build
+    startCommand: npx serve -s build -l $PORT
     envVars:
       - key: REACT_APP_API_URL
         value: https://sorte-na-mao-backend.onrender.com/api
