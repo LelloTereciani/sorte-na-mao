@@ -693,14 +693,12 @@ function Gerador() {
           }
         }}
       >
-        <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>
-          <Typography variant="h5" fontWeight="bold" color="primary">
-            🎉 Jogos Gerados com Sucesso!
-          </Typography>
+        <DialogTitle sx={{ textAlign: 'center', pb: 1, fontWeight: 'bold', color: 'primary.main' }}>
+          🎉 Jogos Gerados com Sucesso!
         </DialogTitle>
         
         <DialogContent sx={{ pt: 2, pb: 3 }}>
-          <Typography variant="h6" align="center" gutterBottom>
+          <Typography variant="body1" align="center" gutterBottom fontWeight="500" fontSize="1.1rem">
             O que deseja fazer agora?
           </Typography>
         </DialogContent>
