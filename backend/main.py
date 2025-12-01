@@ -18,14 +18,6 @@ from mega_statistics import StatisticsAnalyzer
 
 DATA_FILE_PATH = 'data/Mega-Sena.xlsx'
 
-# Tabela de Preços Oficial
-PRICE_TABLE = {
-    6: 6.00, 7: 42.00, 8: 168.00, 9: 504.00,
-    10: 1260.00, 11: 2772.00, 12: 5544.00, 13: 10296.00,
-    14: 18018.00, 15: 30030.00, 16: 48048.00, 17: 74256.00,
-    18: 111384.00, 19: 162792.00, 20: 232560.00,
-}
-
 def load_data():
     """Carrega e processa o arquivo Excel da Mega-Sena."""
     try:
@@ -66,7 +58,7 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         "https://sorte-na-mao-frontend.onrender.com",
         "http://sorte-na-mao-frontend.onrender.com",  
-        "*"  # Remove em produção se quiser mais segurança
+        "*"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -81,6 +73,7 @@ class GameGenerationRequest(BaseModel):
     game_count: Optional[int] = 10
     fixed_numbers: List[int] = []
     suppressed_quadrants: List[str] = []
+    price_table: dict  # ✅ OBRIGATÓRIO - Tabela de preços vem do frontend
 
 class ExportRequest(BaseModel):
     games: List[List[int]]
@@ -109,18 +102,50 @@ def generate_games_endpoint(request: GameGenerationRequest):
     if generator is None:
         raise HTTPException(status_code=404, detail="Base de dados não carregada. Faça upload de um arquivo Excel nas Configurações.")
     
+    # ✅ Valida se a tabela de preços foi enviada
+    if not request.price_table:
+        raise HTTPException(
+            status_code=400, 
+            detail="Tabela de preços não fornecida. Configure os preços em Configurações."
+        )
+    
+    # Converte chaves para inteiros (JSON envia como string)
+    try:
+        price_table = {int(k): float(v) for k, v in request.price_table.items()}
+    except (ValueError, TypeError) as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Formato inválido na tabela de preços: {str(e)}"
+        )
+    
     final_game_count = 0
+    
     if request.budget is not None:
-        if request.numbers_per_game not in PRICE_TABLE:
-            raise HTTPException(status_code=400, detail=f"Não há preço definido para jogos de {request.numbers_per_game} dezenas.")
-        cost_per_game = PRICE_TABLE[request.numbers_per_game]
+        # Valida se o preço está configurado
+        if request.numbers_per_game not in price_table:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Preço para {request.numbers_per_game} dezenas não está configurado. Acesse Configurações."
+            )
+        
+        cost_per_game = price_table[request.numbers_per_game]
+        
         if request.budget < cost_per_game:
-            raise HTTPException(status_code=400, detail=f"Orçamento de R$ {request.budget:.2f} é insuficiente. O custo mínimo para um jogo de {request.numbers_per_game} dezenas é R$ {cost_per_game:.2f}.")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Orçamento de R$ {request.budget:.2f} é insuficiente. Custo mínimo: R$ {cost_per_game:.2f}"
+            )
+        
         final_game_count = int(request.budget / cost_per_game)
+        
     elif request.game_count is not None:
         final_game_count = request.game_count
+        
     else:
-        raise HTTPException(status_code=400, detail="Requisição inválida. Forneça um 'budget' ou 'game_count'.")
+        raise HTTPException(
+            status_code=400, 
+            detail="Requisição inválida. Forneça 'budget' ou 'game_count'."
+        )
     
     if final_game_count == 0:
         return []
@@ -151,18 +176,17 @@ def export_games_endpoint(request: ExportRequest, format: str):
     elif format.lower() == 'pdf':
         stream = io.BytesIO()
         doc = SimpleDocTemplate(
-        stream, 
-        pagesize=letter, 
-        topMargin=40, 
-        bottomMargin=40,
-        title="🍀 Sorte na Mão 🍀",
-        author="Wesley",
-        subject="Jogos da Mega-Sena"
+            stream, 
+            pagesize=letter, 
+            topMargin=40, 
+            bottomMargin=40,
+            title="🍀 Sorte na Mão 🍀",
+            author="Wesley",
+            subject="Jogos da Mega-Sena"
         )
         elements = []
         styles = getSampleStyleSheet()
         
-        # CABEÇALHO ESTILIZADO
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
@@ -185,7 +209,6 @@ def export_games_endpoint(request: ExportRequest, format: str):
         elements.append(Paragraph("Jogos Gerados - Sorte na Mao", title_style))
         elements.append(Paragraph(f"Total de jogos: {len(request.games)}", subtitle_style))
         
-        # PREPARA DADOS DA TABELA
         header = ['Jogo', 'Dezena 1', 'Dezena 2', 'Dezena 3', 'Dezena 4', 'Dezena 5', 'Dezena 6']
         data = [header]
         
@@ -193,11 +216,9 @@ def export_games_endpoint(request: ExportRequest, format: str):
             row = [f'#{i+1}'] + [str(num) for num in game]
             data.append(row)
         
-        # CRIA TABELA COM LARGURAS PERSONALIZADAS
         col_widths = [60, 70, 70, 70, 70, 70, 70]
         table = Table(data, colWidths=col_widths, hAlign='CENTER')
         
-        # ESTILO DA TABELA - TEMA MEGA-SENA
         table_style = [
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E8449')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -218,7 +239,6 @@ def export_games_endpoint(request: ExportRequest, format: str):
             ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#1E8449')),
         ]
         
-        # LINHAS ZEBRADAS
         for i in range(1, len(data)):
             if i % 2 == 0:
                 table_style.append(('BACKGROUND', (1, i), (-1, i), colors.white))
@@ -228,7 +248,6 @@ def export_games_endpoint(request: ExportRequest, format: str):
         table.setStyle(TableStyle(table_style))
         elements.append(table)
         
-        # RODAPÉ
         from datetime import datetime
         footer_style = ParagraphStyle(
             'Footer',

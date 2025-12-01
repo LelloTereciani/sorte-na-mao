@@ -11,7 +11,7 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import TableViewIcon from '@mui/icons-material/TableView';
 import InfoIcon from '@mui/icons-material/Info';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import axios from 'axios';
+import apiClient from '../api/apiClient';
 import { useConfig } from '../contexts/ConfigContext';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import CloseIcon from '@mui/icons-material/Close';
@@ -141,7 +141,7 @@ function Gerador() {
     setDelayedNumbers([]);
     setIsLoadingDelayed(true);
     
-    axios.get('http://127.0.0.1:8000/api/delayed-numbers', {
+    apiClient.get('/delayed-numbers', {
       params: { 
         count: numbersPerGame, 
         analysis_range: newRange 
@@ -223,7 +223,7 @@ function Gerador() {
         suppressed_quadrants: suppressedQuadrants
       };
       
-      const response = await axios.post('http://127.0.0.1:8000/api/generate-games', payload);
+      const response = await apiClient.post('/export-games', payload);
       setGeneratedGames(response.data.games || response.data);
       setShowActionModal(true); // Abre modal de próxima ação
     } catch (err) {
@@ -266,8 +266,8 @@ function Gerador() {
     setExporting(true);
     setError('');
     try {
-      const response = await axios.post(
-        'http://127.0.0.1:8000/api/export-games', 
+      const response = await apiClient.post(
+        '/export-games', 
         { games: generatedGames }, 
         { params: { format }, responseType: 'blob' }
       );
