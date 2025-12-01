@@ -37,7 +37,7 @@ function Gerador() {
     return (cents / 100).toFixed(2).replace('.', ',');
   };
 
-  const { calculatePrice } = useConfig();
+  const { calculatePrice, priceTable } = useConfig();  // ✅ CORRIGIDO: Adicionado priceTable
   const theme = useTheme();
   
   // Estados principais
@@ -220,10 +220,11 @@ function Gerador() {
         strategy: strategy,
         analysis_range: analysisRange,
         fixed_numbers: selectedFixed,
-        suppressed_quadrants: suppressedQuadrants
+        suppressed_quadrants: suppressedQuadrants,
+        price_table: priceTable  // ✅ CORRIGIDO: Adicionado price_table
       };
       
-      const response = await apiClient.post('/export-games', payload);
+      const response = await apiClient.post('/generate-games', payload);  // ✅ CORRIGIDO: Endpoint correto
       setGeneratedGames(response.data.games || response.data);
       setShowActionModal(true); // Abre modal de próxima ação
     } catch (err) {
