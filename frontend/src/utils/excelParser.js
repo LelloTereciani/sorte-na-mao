@@ -48,78 +48,134 @@ const extractMegaSenaData = (data) => {
         throw new Error('Arquivo vazio ou inválido');
     }
 
-    // Find header row (usually first row)
+    // Find header row
+    let headerRow = null;
     let startRow = 0;
 
-    // Skip empty rows
-    while (startRow < data.length && (!data[startRow] || data[startRow].length === 0)) {
-        startRow++;
+    for (let i = 0; i < Math.min(10, data.length); i++) {
+        const row = data[i];
+        if (!row || row.length === 0) continue;
+
+        // Check if this row contains expected headers
+        const rowStr = JSON.stringify(row).toLowerCase();
+        if (rowStr.includes('concurso') || rowStr.includes('bola') || rowStr.includes('dezena')) {
+            headerRow = row;
+            startRow = i + 1;
+            break;
+        }
     }
 
-    if (startRow >= data.length) {
-        throw new Error('Nenhum dado encontrado no arquivo');
+    if (!headerRow) {
+        // No header found, assume first row is header
+        headerRow = data[0];
+        startRow = 1;
+    }
+
+    console.log('📋 Header encontrado:', headerRow);
+
+    // Find column indices
+    const concursoIdx = findColumnIndex(headerRow, ['concurso']);
+    const dataIdx = findColumnIndex(headerRow, ['data', 'data do sorteio', 'data sorteio']);
+
+    // Find ball/dezena columns (try both "Bola" and "Dezena")
+    const ballIndices = [];
+    for (let i = 1; i <= 6; i++) {
+        const idx = findColumnIndex(headerRow, [
+            `bola${i}`, `bola ${i}`,
+            `dezena${i}`, `dezena ${i}`,
+            `d${i}`, `b${i}`
+        ]);
+        if (idx !== -1) {
+            ballIndices.push(idx);
+        }
+    }
+
+    console.log(`📍 Índices encontrados: Concurso=${concursoIdx}, Data=${dataIdx}, Bolas=${ballIndices.join(',')}`);
+
+    if (concursoIdx === -1) {
+        throw new Error('Coluna "Concurso" não encontrada no arquivo');
+    }
+
+    if (dataIdx === -1) {
+        throw new Error('Coluna de data não encontrada no arquivo');
+    }
+
+    if (ballIndices.length < 6) {
+        throw new Error(`Apenas ${ballIndices.length} colunas de bolas encontradas. Necessário 6 colunas.`);
     }
 
     const draws = [];
     let validDraws = 0;
     let skippedRows = 0;
 
-    // Process data rows (skip header)
-    for (let i = startRow + 1; i < data.length; i++) {
+    // Process data rows
+    for (let i = startRow; i < data.length; i++) {
         const row = data[i];
 
         // Skip empty rows
-        if (!row || row.length < 8) {
+        if (!row || row.length === 0) {
             skippedRows++;
             continue;
         }
 
         try {
-            // Extract first 8 columns: Concurso, Data, Dezena1-6
-            const concurso = parseInt(row[0]);
-            const dataStr = row[1];
-            const dezenas = [
-                parseInt(row[2]),
-                parseInt(row[3]),
-                parseInt(row[4]),
-                parseInt(row[5]),
-                parseInt(row[6]),
-                parseInt(row[7])
-            ];
-
-            // Validate data
-            if (isNaN(concurso) || !dataStr) {
+            // Extract concurso
+            const concursoValue = row[concursoIdx];
+            if (!concursoValue || concursoValue === '' || concursoValue === null) {
                 skippedRows++;
                 continue;
             }
 
-            // Validate dezenas
-            const validDezenas = dezenas.every(d => !isNaN(d) && d >= 1 && d <= 60);
-            if (!validDezenas) {
+            const concurso = parseInt(concursoValue);
+            if (isNaN(concurso)) {
                 skippedRows++;
                 continue;
             }
 
-            // Parse date (format: DD/MM/YYYY or Excel serial date)
+            // Extract data
+            const dataStr = row[dataIdx];
+            if (!dataStr) {
+                skippedRows++;
+                continue;
+            }
+
+            // Extract dezenas
+            const dezenas = [];
+            for (const idx of ballIndices) {
+                const value = row[idx];
+                const num = parseInt(value);
+                if (isNaN(num) || num < 1 || num > 60) {
+                    throw new Error(`Número inválido: ${value}`);
+                }
+                dezenas.push(num);
+            }
+
+            if (dezenas.length !== 6) {
+                skippedRows++;
+                continue;
+            }
+
+            // Parse date
             let formattedDate;
             if (typeof dataStr === 'number') {
-                // Excel serial date
                 formattedDate = excelDateToJSDate(dataStr);
             } else {
-                // String date DD/MM/YYYY
                 formattedDate = parseBrazilianDate(dataStr);
             }
 
             draws.push({
                 concurso,
                 data: formattedDate,
-                dezenas: dezenas.sort((a, b) => a - b) // Sort numbers
+                dezenas: dezenas.sort((a, b) => a - b)
             });
 
             validDraws++;
         } catch (error) {
             skippedRows++;
-            console.warn(`Linha ${i + 1} ignorada:`, error.message);
+            if (validDraws === 0 && i < startRow + 5) {
+                // Log errors for first few rows to help debugging
+                console.warn(`Linha ${i + 1} ignorada:`, error.message);
+            }
         }
     }
 
@@ -142,6 +198,24 @@ const extractMegaSenaData = (data) => {
             skippedRows
         }
     };
+};
+
+/**
+ * Find column index by searching for multiple possible names
+ * @param {Array} headerRow - Header row from Excel
+ * @param {Array} possibleNames - Array of possible column names
+ * @returns {number} Column index or -1 if not found
+ */
+const findColumnIndex = (headerRow, possibleNames) => {
+    for (let i = 0; i < headerRow.length; i++) {
+        const cellValue = String(headerRow[i] || '').toLowerCase().trim();
+        for (const name of possibleNames) {
+            if (cellValue === name.toLowerCase() || cellValue.includes(name.toLowerCase())) {
+                return i;
+            }
+        }
+    }
+    return -1;
 };
 
 /**
