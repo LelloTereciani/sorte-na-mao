@@ -18,20 +18,53 @@ export const parseExcelFile = async (file) => {
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
 
-                // Convert to JSON with options to handle empty cells
+                console.log('📄 [DEBUG] Worksheet range:', worksheet['!ref']);
+
+                // Convert to JSON - use raw:false to get formatted values
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, {
                     header: 1,
-                    defval: null,  // Use null for empty cells
-                    blankrows: false  // Skip completely blank rows
+                    defval: null,
+                    blankrows: false,
+                    raw: false  // Get formatted values instead of raw
                 });
 
                 console.log(`📄 Arquivo Excel lido: ${jsonData.length} linhas`);
+
+                // If only 1 row, try alternative method
+                if (jsonData.length <= 1) {
+                    console.warn('⚠️ [DEBUG] Only 1 row detected, trying alternative parsing method');
+
+                    // Get the range
+                    const range = XLSX.utils.decode_range(worksheet['!ref']);
+                    const alternativeData = [];
+
+                    // Read row by row
+                    for (let R = range.s.r; R <= range.e.r; ++R) {
+                        const row = [];
+                        for (let C = range.s.c; C <= range.e.c; ++C) {
+                            const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+                            const cell = worksheet[cellAddress];
+                            row.push(cell ? (cell.w || cell.v) : null);
+                        }
+                        alternativeData.push(row);
+                    }
+
+                    console.log(`📄 Alternative method read: ${alternativeData.length} linhas`);
+
+                    if (alternativeData.length > jsonData.length) {
+                        console.log('✅ Using alternative parsing method');
+                        const parsedData = extractMegaSenaData(alternativeData);
+                        resolve(parsedData);
+                        return;
+                    }
+                }
 
                 // Validate and extract data
                 const parsedData = extractMegaSenaData(jsonData);
 
                 resolve(parsedData);
             } catch (error) {
+                console.error('❌ [DEBUG] Parse error:', error);
                 reject(new Error(`Erro ao processar arquivo Excel: ${error.message}`));
             }
         };
@@ -50,9 +83,15 @@ export const parseExcelFile = async (file) => {
  * @returns {Object} Structured Mega-Sena data
  */
 const extractMegaSenaData = (data) => {
+    console.log('🔍 [DEBUG] extractMegaSenaData called');
+    console.log('🔍 [DEBUG] Total rows received:', data?.length);
+
     if (!data || data.length === 0) {
+        console.error('❌ [DEBUG] Data is empty or null');
         throw new Error('Arquivo vazio ou inválido');
     }
+
+    console.log('🔍 [DEBUG] First 3 rows:', data.slice(0, 3));
 
     // Find header row
     let headerRow = null;
@@ -60,28 +99,38 @@ const extractMegaSenaData = (data) => {
 
     for (let i = 0; i < Math.min(10, data.length); i++) {
         const row = data[i];
-        if (!row || row.length === 0) continue;
+        if (!row || row.length === 0) {
+            console.log(`🔍 [DEBUG] Row ${i} is empty, skipping`);
+            continue;
+        }
 
         // Check if this row contains expected headers
         const rowStr = JSON.stringify(row).toLowerCase();
+        console.log(`🔍 [DEBUG] Row ${i} string:`, rowStr.substring(0, 100));
+
         if (rowStr.includes('concurso') || rowStr.includes('bola') || rowStr.includes('dezena')) {
             headerRow = row;
             startRow = i + 1;
+            console.log(`✅ [DEBUG] Header found at row ${i}`);
             break;
         }
     }
 
     if (!headerRow) {
-        // No header found, assume first row is header
+        console.warn('⚠️ [DEBUG] No header found in first 10 rows, using row 0 as header');
         headerRow = data[0];
         startRow = 1;
     }
 
-    console.log('📋 Header encontrado:', headerRow);
+    console.log('📋 [DEBUG] Header encontrado:', headerRow);
+    console.log('📋 [DEBUG] Data will start at row:', startRow);
 
     // Find column indices
     const concursoIdx = findColumnIndex(headerRow, ['concurso']);
     const dataIdx = findColumnIndex(headerRow, ['data', 'data do sorteio', 'data sorteio']);
+
+    console.log(`🔍 [DEBUG] Concurso index: ${concursoIdx}`);
+    console.log(`🔍 [DEBUG] Data index: ${dataIdx}`);
 
     // Find ball/dezena columns (try both "Bola" and "Dezena")
     const ballIndices = [];
@@ -96,23 +145,31 @@ const extractMegaSenaData = (data) => {
         }
     }
 
-    console.log(`📍 Índices encontrados: Concurso=${concursoIdx}, Data=${dataIdx}, Bolas=${ballIndices.join(',')}`);
+    console.log(`📍 [DEBUG] Índices encontrados: Concurso=${concursoIdx}, Data=${dataIdx}, Bolas=${ballIndices.join(',')}`);
 
     if (concursoIdx === -1) {
+        console.error('❌ [DEBUG] Concurso column not found');
+        console.error('❌ [DEBUG] Available columns:', headerRow);
         throw new Error('Coluna "Concurso" não encontrada no arquivo');
     }
 
     if (dataIdx === -1) {
+        console.error('❌ [DEBUG] Data column not found');
+        console.error('❌ [DEBUG] Available columns:', headerRow);
         throw new Error('Coluna de data não encontrada no arquivo');
     }
 
     if (ballIndices.length < 6) {
+        console.error(`❌ [DEBUG] Only ${ballIndices.length} ball columns found`);
+        console.error('❌ [DEBUG] Available columns:', headerRow);
         throw new Error(`Apenas ${ballIndices.length} colunas de bolas encontradas. Necessário 6 colunas.`);
     }
 
     const draws = [];
     let validDraws = 0;
     let skippedRows = 0;
+
+    console.log(`🔍 [DEBUG] Starting to process rows from ${startRow} to ${data.length}`);
 
     // Process data rows
     for (let i = startRow; i < data.length; i++) {
@@ -124,16 +181,27 @@ const extractMegaSenaData = (data) => {
             continue;
         }
 
+        // Log first few rows for debugging
+        if (i < startRow + 3) {
+            console.log(`🔍 [DEBUG] Processing row ${i}:`, row);
+        }
+
         try {
             // Extract concurso
             const concursoValue = row[concursoIdx];
             if (!concursoValue || concursoValue === '' || concursoValue === null) {
+                if (i < startRow + 3) {
+                    console.log(`⚠️ [DEBUG] Row ${i}: Empty concurso value`);
+                }
                 skippedRows++;
                 continue;
             }
 
             const concurso = parseInt(concursoValue);
             if (isNaN(concurso)) {
+                if (i < startRow + 3) {
+                    console.log(`⚠️ [DEBUG] Row ${i}: Invalid concurso: ${concursoValue}`);
+                }
                 skippedRows++;
                 continue;
             }
@@ -141,6 +209,9 @@ const extractMegaSenaData = (data) => {
             // Extract data
             const dataStr = row[dataIdx];
             if (!dataStr) {
+                if (i < startRow + 3) {
+                    console.log(`⚠️ [DEBUG] Row ${i}: Empty data value`);
+                }
                 skippedRows++;
                 continue;
             }
@@ -151,12 +222,15 @@ const extractMegaSenaData = (data) => {
                 const value = row[idx];
                 const num = parseInt(value);
                 if (isNaN(num) || num < 1 || num > 60) {
-                    throw new Error(`Número inválido: ${value}`);
+                    throw new Error(`Número inválido: ${value} at index ${idx}`);
                 }
                 dezenas.push(num);
             }
 
             if (dezenas.length !== 6) {
+                if (i < startRow + 3) {
+                    console.log(`⚠️ [DEBUG] Row ${i}: Only ${dezenas.length} valid numbers`);
+                }
                 skippedRows++;
                 continue;
             }
@@ -176,16 +250,23 @@ const extractMegaSenaData = (data) => {
             });
 
             validDraws++;
+
+            if (validDraws === 1) {
+                console.log(`✅ [DEBUG] First valid draw processed:`, { concurso, data: formattedDate, dezenas });
+            }
         } catch (error) {
             skippedRows++;
             if (validDraws === 0 && i < startRow + 5) {
-                // Log errors for first few rows to help debugging
-                console.warn(`Linha ${i + 1} ignorada:`, error.message);
+                console.warn(`⚠️ [DEBUG] Row ${i} error:`, error.message);
             }
         }
     }
 
+    console.log(`📊 [DEBUG] Processing complete: ${validDraws} valid, ${skippedRows} skipped`);
+
     if (validDraws === 0) {
+        console.error('❌ [DEBUG] No valid draws found!');
+        console.error('❌ [DEBUG] Total rows processed:', data.length - startRow);
         throw new Error('Nenhum sorteio válido encontrado no arquivo');
     }
 
