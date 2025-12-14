@@ -8,17 +8,17 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
-import axios from 'axios';
+import apiClient from '../api/apiClient';
 import { useConfig } from '../contexts/ConfigContext';
 
 function Configuracoes() {
   const { ticketPrice, setTicketPrice, calculatePrice } = useConfig();
-  
+
   const [localPrice, setLocalPrice] = useState(Math.floor(ticketPrice).toString());
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  
+
   const [databaseExists, setDatabaseExists] = useState(false);
   const [totalDraws, setTotalDraws] = useState(0);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
@@ -30,7 +30,7 @@ function Configuracoes() {
   const checkDatabaseStatus = async () => {
     setIsCheckingStatus(true);
     try {
-      const response = await axios.get('http://127.0.0.1:8000/api/database-status');
+      const response = await apiClient.get('/database-status');
       setDatabaseExists(response.data.exists);
       setTotalDraws(response.data.total_draws);
     } catch (err) {
@@ -69,16 +69,16 @@ function Configuracoes() {
     setMessage({ type: '', text: '' });
 
     try {
-      const response = await axios.post('http://127.0.0.1:8000/api/upload-database', formData, {
+      const response = await apiClient.post('/upload-database', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setMessage({ type: 'success', text: response.data.message || 'Base de dados carregada com sucesso!' });
       event.target.value = '';
       await checkDatabaseStatus();
     } catch (err) {
-      setMessage({ 
-        type: 'error', 
-        text: `Falha ao carregar base: ${err.response?.data?.detail || err.message}` 
+      setMessage({
+        type: 'error',
+        text: `Falha ao carregar base: ${err.response?.data?.detail || err.message}`
       });
     } finally {
       setIsUploading(false);
@@ -94,13 +94,13 @@ function Configuracoes() {
     setMessage({ type: '', text: '' });
 
     try {
-      const response = await axios.delete('http://127.0.0.1:8000/api/delete-database');
+      const response = await apiClient.delete('/delete-database');
       setMessage({ type: 'success', text: response.data.message || 'Base de dados deletada com sucesso!' });
       await checkDatabaseStatus();
     } catch (err) {
-      setMessage({ 
-        type: 'error', 
-        text: `Falha ao deletar: ${err.response?.data?.detail || err.message}` 
+      setMessage({
+        type: 'error',
+        text: `Falha ao deletar: ${err.response?.data?.detail || err.message}`
       });
     } finally {
       setIsDeleting(false);
@@ -122,7 +122,7 @@ function Configuracoes() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Este valor será usado como base para calcular o custo de apostas com mais números.
           </Typography>
-          
+
           <Stack direction="row" spacing={2} alignItems="center">
             <TextField
               label="Preço (R$)"
@@ -135,16 +135,16 @@ function Configuracoes() {
                   setLocalPrice(value);
                 }
               }}
-              InputProps={{ 
+              InputProps={{
                 inputProps: { min: 0, step: 1 },
                 placeholder: "6"
               }}
               helperText="Apenas valores inteiros"
               sx={{ width: '200px' }}
             />
-            <Button 
-              variant="contained" 
-              startIcon={<SaveIcon />} 
+            <Button
+              variant="contained"
+              startIcon={<SaveIcon />}
               onClick={handleSavePrice}
             >
               Salvar Preço
@@ -155,10 +155,10 @@ function Configuracoes() {
             <Typography variant="subtitle2" gutterBottom>Tabela de Preços (6 a 20 números):</Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
               {[6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map(num => (
-                <Chip 
-                  key={num} 
-                  label={`${num}: R$ ${calculatePrice(num).toLocaleString('pt-BR')}`} 
-                  size="small" 
+                <Chip
+                  key={num}
+                  label={`${num}: R$ ${calculatePrice(num).toLocaleString('pt-BR')}`}
+                  size="small"
                   variant="outlined"
                 />
               ))}

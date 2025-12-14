@@ -10,7 +10,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import PeopleIcon from '@mui/icons-material/People';
 import GroupWorkIcon from '@mui/icons-material/GroupWork';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import axios from 'axios';
+import apiClient from '../api/apiClient';
 
 function TabPanel({ children, value, index }) {
   return (
@@ -25,12 +25,12 @@ function ResultadosEstatisticas() {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  
+
   const [tabValue, setTabValue] = useState(0);
   const [statistics, setStatistics] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   const periodo = searchParams.get('periodo') || 'all';
 
   const getPeriodLabel = (value) => {
@@ -55,7 +55,7 @@ function ResultadosEstatisticas() {
     setError('');
     try {
       const params = periodo === 'all' ? {} : { last_n: parseInt(periodo) };
-      const response = await axios.get('http://127.0.0.1:8000/api/statistics', { params });
+      const response = await apiClient.get('/statistics', { params });
       console.log('📊 Dados recebidos:', response.data);
       setStatistics(response.data);
     } catch (err) {
@@ -125,11 +125,11 @@ function ResultadosEstatisticas() {
             startIcon={<ArrowBackIcon />}
             onClick={() => navigate('/estatisticas')}
             variant="outlined"
-            sx={{ 
+            sx={{
               mb: 2,
               borderColor: '#1E8449',
               color: '#1E8449',
-              '&:hover': { 
+              '&:hover': {
                 borderColor: '#145a32',
                 backgroundColor: 'rgba(30, 132, 73, 0.1)'
               }
@@ -137,14 +137,14 @@ function ResultadosEstatisticas() {
           >
             Voltar
           </Button>
-          
+
           <Typography variant="h4" component="h1" gutterBottom fontWeight="bold">
             📊 Estatísticas - {getPeriodLabel(periodo)}
           </Typography>
-          
+
           <Chip
             label={`Analisados: ${statistics.total_sorteios} sorteio(s) | Concursos ${statistics.primeiro_concurso} a ${statistics.ultimo_concurso}`}
-            sx={{ 
+            sx={{
               mt: 1,
               backgroundColor: '#1E8449',
               color: 'white',
@@ -182,9 +182,9 @@ function ResultadosEstatisticas() {
           <Grid container spacing={2}>
             {(statistics.numeros || []).map((item, index) => (
               <Grid item xs={6} sm={4} md={2.4} key={item.numero}>
-                <Card 
+                <Card
                   elevation={3}
-                  sx={{ 
+                  sx={{
                     border: '2px solid #1E8449',
                     transition: 'all 0.3s',
                     '&:hover': {
@@ -203,7 +203,7 @@ function ResultadosEstatisticas() {
                     <Chip
                       label={`${item.frequencia}x`}
                       size="small"
-                      sx={{ 
+                      sx={{
                         backgroundColor: '#1E8449',
                         color: 'white',
                         fontWeight: 'bold'

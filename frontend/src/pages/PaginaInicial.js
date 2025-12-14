@@ -14,7 +14,7 @@ import {
   ListItemIcon,
 } from '@mui/material';
 import StarIcon from '@mui/icons-material/Star';
-import axios from 'axios';
+import apiClient from '../api/apiClient';
 // Voltamos a usar o parseISO, que é o especialista para o formato AAAA-MM-DD
 import { format, parseISO } from 'date-fns';
 
@@ -27,7 +27,7 @@ function PaginaInicial() {
     const fetchSummary = async () => {
       try {
         setIsLoading(true);
-        const response = await axios.get('http://127.0.0.1:8000/api/summary');
+        const response = await apiClient.get('/summary');
         setSummaryData(response.data);
         setError('');
       } catch (err) {
@@ -40,21 +40,21 @@ function PaginaInicial() {
     };
     fetchSummary();
   }, []);
-  
+
   const getDrawNumbers = (draw) => {
     if (!draw) return [];
     return [draw.Dezena1, draw.Dezena2, draw.Dezena3, draw.Dezena4, draw.Dezena5, draw.Dezena6];
   };
-  
+
   if (isLoading) {
     return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}><CircularProgress /></Box>;
   }
   if (error) {
     return (
-      <Container 
-        maxWidth="md" 
-        sx={{ 
-          mt: 4, 
+      <Container
+        maxWidth="md"
+        sx={{
+          mt: 4,
           pb: { xs: 4, md: 2 },
           overflowY: 'auto',
           minHeight: 'auto'
@@ -66,10 +66,10 @@ function PaginaInicial() {
   }
   if (!summaryData || !summaryData.latest) {
     return (
-      <Container 
-        maxWidth="md" 
-        sx={{ 
-          mt: 4, 
+      <Container
+        maxWidth="md"
+        sx={{
+          mt: 4,
           pb: { xs: 4, md: 2 },
           overflowY: 'auto',
           minHeight: 'auto'
@@ -83,7 +83,7 @@ function PaginaInicial() {
   const latestDrawNumbers = getDrawNumbers(summaryData.latest);
 
   return (
-    <Container 
+    <Container
       maxWidth="lg"
       sx={{
         pb: { xs: 6, md: 4 },
