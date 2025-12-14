@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -12,34 +13,73 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
+  Button,
 } from '@mui/material';
 import StarIcon from '@mui/icons-material/Star';
-import apiClient from '../api/apiClient';
+import { useDatabase } from '../contexts/DatabaseContext';
 // Voltamos a usar o parseISO, que é o especialista para o formato AAAA-MM-DD
 import { format, parseISO } from 'date-fns';
 
 function PaginaInicial() {
+  const { getLatestDraw, getPreviousDraws, isLoaded, error: dbError } = useDatabase();
   const [summaryData, setSummaryData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const fetchSummary = async () => {
+    const fetchSummary = () => {
       try {
         setIsLoading(true);
-        const response = await apiClient.get('/summary');
-        setSummaryData(response.data);
+
+        if (!isLoaded) {
+          setError('Nenhuma base de dados carregada. Vá em Configurações para carregar uma planilha Excel.');
+          setSummaryData(null);
+          return;
+        }
+
+        const latest = getLatestDraw();
+        const previous = getPreviousDraws(5);
+
+        if (!latest) {
+          setError('Nenhum sorteio encontrado na base de dados.');
+          setSummaryData(null);
+          return;
+        }
+
+        // Convert to expected format
+        const formattedLatest = {
+          Concurso: latest.concurso,
+          Data: latest.data,
+          Dezena1: latest.dezenas[0],
+          Dezena2: latest.dezenas[1],
+          Dezena3: latest.dezenas[2],
+          Dezena4: latest.dezenas[3],
+          Dezena5: latest.dezenas[4],
+          Dezena6: latest.dezenas[5]
+        };
+
+        const formattedPrevious = previous.map(draw => ({
+          Concurso: draw.concurso,
+          Data: draw.data,
+          Dezena1: draw.dezenas[0],
+          Dezena2: draw.dezenas[1],
+          Dezena3: draw.dezenas[2],
+          Dezena4: draw.dezenas[3],
+          Dezena5: draw.dezenas[4],
+          Dezena6: draw.dezenas[5]
+        }));
+
+        setSummaryData({ latest: formattedLatest, previous: formattedPrevious });
         setError('');
       } catch (err) {
-        const errorMessage = err.response?.data?.detail || err.message || 'Não foi possível conectar ao servidor.';
-        setError(`Falha ao carregar dados: ${errorMessage}`);
+        setError(`Falha ao carregar dados: ${err.message}`);
         setSummaryData(null);
       } finally {
         setIsLoading(false);
       }
     };
     fetchSummary();
-  }, []);
+  }, [isLoaded, getLatestDraw, getPreviousDraws]);
 
   const getDrawNumbers = (draw) => {
     if (!draw) return [];
@@ -60,7 +100,19 @@ function PaginaInicial() {
           minHeight: 'auto'
         }}
       >
-        <Alert severity="error">{error}</Alert>
+        <Alert severity="warning">{error}</Alert>
+        {!isLoaded && (
+          <Box sx={{ mt: 2, textAlign: 'center' }}>
+            <Button
+              variant="contained"
+              component={Link}
+              to="/configuracoes"
+              sx={{ backgroundColor: '#1E8449', '&:hover': { backgroundColor: '#145a32' } }}
+            >
+              Ir para Configurações
+            </Button>
+          </Box>
+        )}
       </Container>
     );
   }

@@ -1,46 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import {
   Container, Typography, Paper, Divider, TextField, Button,
-  Box, Alert, CircularProgress, Stack, Chip,
+  Box, Alert, CircularProgress, Stack, Chip, LinearProgress,
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
-import apiClient from '../api/apiClient';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useConfig } from '../contexts/ConfigContext';
+import { useDatabase } from '../contexts/DatabaseContext';
+import { parseExcelFile } from '../utils/excelParser';
+import { formatStorageSize, getStorageSize } from '../utils/localDatabase';
 
 function Configuracoes() {
   const { ticketPrice, setTicketPrice, calculatePrice } = useConfig();
+  const {
+    isLoaded,
+    metadata,
+    updateDatabase,
+    deleteDatabase
+  } = useDatabase();
 
   const [localPrice, setLocalPrice] = useState(Math.floor(ticketPrice).toString());
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [message, setMessage] = useState({ type: '', text: '' });
-
-  const [databaseExists, setDatabaseExists] = useState(false);
-  const [totalDraws, setTotalDraws] = useState(0);
-  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
-
-  useEffect(() => {
-    checkDatabaseStatus();
-  }, []);
-
-  const checkDatabaseStatus = async () => {
-    setIsCheckingStatus(true);
-    try {
-      const response = await apiClient.get('/database-status');
-      setDatabaseExists(response.data.exists);
-      setTotalDraws(response.data.total_draws);
-    } catch (err) {
-      console.error('Erro ao verificar status da base de dados:', err);
-      setDatabaseExists(false);
-      setTotalDraws(0);
-    } finally {
-      setIsCheckingStatus(false);
-    }
-  };
 
   const handleSavePrice = () => {
     const price = parseInt(localPrice, 10);
@@ -62,31 +49,41 @@ function Configuracoes() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-
     setIsUploading(true);
+    setUploadProgress(0);
     setMessage({ type: '', text: '' });
 
     try {
-      const response = await apiClient.post('/upload-database', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      // Simulate progress for better UX
+      setUploadProgress(20);
+
+      // Parse Excel file
+      const parsedData = await parseExcelFile(selectedFile);
+      setUploadProgress(60);
+
+      // Save to localStorage
+      updateDatabase(parsedData);
+      setUploadProgress(100);
+
+      setMessage({
+        type: 'success',
+        text: `Base de dados carregada com sucesso! ${parsedData.metadata.totalDraws} sorteios processados.`
       });
-      setMessage({ type: 'success', text: response.data.message || 'Base de dados carregada com sucesso!' });
+
       event.target.value = '';
-      await checkDatabaseStatus();
     } catch (err) {
       setMessage({
         type: 'error',
-        text: `Falha ao carregar base: ${err.response?.data?.detail || err.message}`
+        text: `Falha ao carregar base: ${err.message}`
       });
     } finally {
       setIsUploading(false);
+      setTimeout(() => setUploadProgress(0), 1000);
     }
   };
 
   const handleDeleteDatabase = async () => {
-    if (!window.confirm('Tem certeza que deseja deletar toda a base de dados? Esta ação não pode ser desfeita.')) {
+    if (!window.confirm('Tem certeza que deseja deletar toda a base de dados local? Esta ação não pode ser desfeita.')) {
       return;
     }
 
@@ -94,18 +91,20 @@ function Configuracoes() {
     setMessage({ type: '', text: '' });
 
     try {
-      const response = await apiClient.delete('/delete-database');
-      setMessage({ type: 'success', text: response.data.message || 'Base de dados deletada com sucesso!' });
-      await checkDatabaseStatus();
+      deleteDatabase();
+      setMessage({ type: 'success', text: 'Base de dados local deletada com sucesso!' });
     } catch (err) {
       setMessage({
         type: 'error',
-        text: `Falha ao deletar: ${err.response?.data?.detail || err.message}`
+        text: `Falha ao deletar: ${err.message}`
       });
     } finally {
       setIsDeleting(false);
     }
   };
+
+  const storageSize = getStorageSize();
+  const formattedSize = formatStorageSize(storageSize);
 
   return (
     <Container maxWidth="md">
@@ -170,74 +169,116 @@ function Configuracoes() {
 
         <Box sx={{ mb: 4 }}>
           <Typography variant="h6" gutterBottom>
-            📊 Base de Dados da Mega-Sena
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Baixe a planilha atualizada do site da Caixa e carregue aqui.
+            📊 Base de Dados da Mega-Sena (Local)
           </Typography>
 
-          {isCheckingStatus ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, p: 2, backgroundColor: 'action.hover', borderRadius: 1 }}>
-              <CircularProgress size={20} />
-              <Typography variant="body2">Verificando status...</Typography>
-            </Box>
-          ) : (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, p: 2, backgroundColor: 'action.hover', borderRadius: 1 }}>
-              {databaseExists ? (
-                <>
-                  <CheckCircleIcon color="success" />
-                  <Box>
-                    <Typography variant="body2" fontWeight="bold" color="success.main">
-                      Base de dados carregada
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              <strong>💡 Armazenamento Local:</strong> Os dados ficam salvos no seu dispositivo (navegador).
+              Você pode atualizar a base sempre que quiser baixando a planilha mais recente da Caixa.
+            </Typography>
+          </Alert>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, p: 2, backgroundColor: 'action.hover', borderRadius: 1 }}>
+            {isLoaded ? (
+              <>
+                <CheckCircleIcon color="success" />
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="body2" fontWeight="bold" color="success.main">
+                    Base de dados carregada
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {metadata?.totalDraws || 0} sorteios disponíveis
+                  </Typography>
+                  <Typography variant="caption" display="block" color="text.secondary">
+                    Concursos: {metadata?.firstDraw} a {metadata?.lastDraw}
+                  </Typography>
+                  <Typography variant="caption" display="block" color="text.secondary">
+                    Tamanho: {formattedSize}
+                  </Typography>
+                  {metadata?.lastUpdated && (
+                    <Typography variant="caption" display="block" color="text.secondary">
+                      Atualizado: {new Date(metadata.lastUpdated).toLocaleString('pt-BR')}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {totalDraws} sorteios disponíveis
-                    </Typography>
-                  </Box>
-                </>
-              ) : (
-                <>
-                  <ErrorIcon color="warning" />
-                  <Box>
-                    <Typography variant="body2" fontWeight="bold" color="warning.main">
-                      Nenhuma base de dados encontrada
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Baixe a planilha do site da Caixa e carregue aqui
-                    </Typography>
-                  </Box>
-                </>
-              )}
-            </Box>
-          )}
+                  )}
+                </Box>
+              </>
+            ) : (
+              <>
+                <ErrorIcon color="warning" />
+                <Box>
+                  <Typography variant="body2" fontWeight="bold" color="warning.main">
+                    Nenhuma base de dados encontrada
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Carregue uma planilha Excel para começar
+                  </Typography>
+                </Box>
+              </>
+            )}
+          </Box>
+
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <strong>Como atualizar:</strong>
+          </Typography>
+          <Box component="ol" sx={{ pl: 3, mb: 2 }}>
+            <Typography component="li" variant="body2" color="text.secondary">
+              Baixe a planilha atualizada em:{' '}
+              <Button
+                size="small"
+                startIcon={<DownloadIcon />}
+                href="https://www.loteriascaixa.gov.br/"
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{ textTransform: 'none' }}
+              >
+                Loterias Caixa
+              </Button>
+            </Typography>
+            <Typography component="li" variant="body2" color="text.secondary">
+              Clique em "Carregar Base de Dados" abaixo
+            </Typography>
+            <Typography component="li" variant="body2" color="text.secondary">
+              Selecione o arquivo Excel baixado
+            </Typography>
+          </Box>
 
           <Stack spacing={2}>
-            <Button
-              variant="contained"
-              component="label"
-              startIcon={isUploading ? <CircularProgress size={20} color="inherit" /> : <CloudUploadIcon />}
-              fullWidth
-              disabled={databaseExists || isUploading}
-            >
-              {isUploading ? 'Carregando...' : 'Carregar Base de Dados'}
-              <input
-                type="file"
-                hidden
-                accept=".xlsx,.xls"
-                onChange={handleFileChange}
-                disabled={databaseExists || isUploading}
-              />
-            </Button>
+            <Box>
+              <Button
+                variant="contained"
+                component="label"
+                startIcon={isUploading ? <CircularProgress size={20} color="inherit" /> : <CloudUploadIcon />}
+                fullWidth
+                disabled={isUploading}
+              >
+                {isUploading ? 'Processando...' : isLoaded ? 'Atualizar Base de Dados' : 'Carregar Base de Dados'}
+                <input
+                  type="file"
+                  hidden
+                  accept=".xlsx,.xls"
+                  onChange={handleFileChange}
+                  disabled={isUploading}
+                />
+              </Button>
+              {uploadProgress > 0 && (
+                <LinearProgress
+                  variant="determinate"
+                  value={uploadProgress}
+                  sx={{ mt: 1, borderRadius: 1 }}
+                />
+              )}
+            </Box>
 
             <Button
               variant="outlined"
               color="error"
               onClick={handleDeleteDatabase}
-              disabled={!databaseExists || isDeleting}
+              disabled={!isLoaded || isDeleting}
               startIcon={isDeleting ? <CircularProgress size={20} /> : <DeleteIcon />}
               fullWidth
             >
-              {isDeleting ? 'Deletando...' : 'Deletar Base de Dados'}
+              {isDeleting ? 'Deletando...' : 'Deletar Base de Dados Local'}
             </Button>
           </Stack>
         </Box>
