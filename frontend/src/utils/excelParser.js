@@ -18,8 +18,14 @@ export const parseExcelFile = async (file) => {
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
 
-                // Convert to JSON
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                // Convert to JSON with options to handle empty cells
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+                    header: 1,
+                    defval: null,  // Use null for empty cells
+                    blankrows: false  // Skip completely blank rows
+                });
+
+                console.log(`📄 Arquivo Excel lido: ${jsonData.length} linhas`);
 
                 // Validate and extract data
                 const parsedData = extractMegaSenaData(jsonData);
