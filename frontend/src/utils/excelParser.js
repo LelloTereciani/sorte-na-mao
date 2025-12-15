@@ -18,7 +18,30 @@ export const parseExcelFile = async (file) => {
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
 
-                console.log('📄 [DEBUG] Worksheet range:', worksheet['!ref']);
+                console.log('📄 [DEBUG] Original worksheet range:', worksheet['!ref']);
+
+                // FIX: Recalculate range if it appears incorrect
+                // Sometimes Excel files have incorrect !ref property
+                const cellAddresses = Object.keys(worksheet).filter(k => !k.startsWith('!'));
+                console.log('📄 [DEBUG] Total cells in worksheet:', cellAddresses.length);
+
+                if (cellAddresses.length > 100) {
+                    // Recalculate the actual range
+                    let maxRow = 0;
+                    let maxCol = 0;
+
+                    cellAddresses.forEach(addr => {
+                        const decoded = XLSX.utils.decode_cell(addr);
+                        if (decoded.r > maxRow) maxRow = decoded.r;
+                        if (decoded.c > maxCol) maxCol = decoded.c;
+                    });
+
+                    const newRange = `A1:${XLSX.utils.encode_cell({ r: maxRow, c: maxCol })}`;
+                    console.log('📄 [DEBUG] Recalculated range:', newRange);
+
+                    // Update the worksheet range
+                    worksheet['!ref'] = newRange;
+                }
 
                 // Convert to JSON - use raw:false to get formatted values
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, {
@@ -29,35 +52,6 @@ export const parseExcelFile = async (file) => {
                 });
 
                 console.log(`📄 Arquivo Excel lido: ${jsonData.length} linhas`);
-
-                // If only 1 row, try alternative method
-                if (jsonData.length <= 1) {
-                    console.warn('⚠️ [DEBUG] Only 1 row detected, trying alternative parsing method');
-
-                    // Get the range
-                    const range = XLSX.utils.decode_range(worksheet['!ref']);
-                    const alternativeData = [];
-
-                    // Read row by row
-                    for (let R = range.s.r; R <= range.e.r; ++R) {
-                        const row = [];
-                        for (let C = range.s.c; C <= range.e.c; ++C) {
-                            const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
-                            const cell = worksheet[cellAddress];
-                            row.push(cell ? (cell.w || cell.v) : null);
-                        }
-                        alternativeData.push(row);
-                    }
-
-                    console.log(`📄 Alternative method read: ${alternativeData.length} linhas`);
-
-                    if (alternativeData.length > jsonData.length) {
-                        console.log('✅ Using alternative parsing method');
-                        const parsedData = extractMegaSenaData(alternativeData);
-                        resolve(parsedData);
-                        return;
-                    }
-                }
 
                 // Validate and extract data
                 const parsedData = extractMegaSenaData(jsonData);
