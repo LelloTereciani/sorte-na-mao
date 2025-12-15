@@ -89,7 +89,6 @@ export const parseExcelFile = async (file, logCallback = console.log) => {
  */
 /**
  * Extract and validate Mega-Sena data from parsed Excel
- * @param {Array} data - Raw data from Excel
  * @param {Function} logCallback - Logging function
  * @returns {Object} Structured Mega-Sena data
  */
@@ -100,19 +99,43 @@ const extractMegaSenaData = (data, logCallback = console.log) => {
         throw new Error('Arquivo vazio ou inválido (sem dados JSON)');
     }
 
-    // Find header row
+    // PHASE 1: PRE-PROCESSING (Handle condensed/single-column formats)
+    // Check if the first non-empty row is condensed (has 1 column with delimiters)
+    let processedData = data;
+    const firstRow = data.find(r => r && r.length > 0);
+
+    if (firstRow && firstRow.length === 1 && typeof firstRow[0] === 'string') {
+        const str = firstRow[0];
+        let delimiter = null;
+        if (str.includes('\t')) delimiter = '\t';
+        else if (str.includes(';')) delimiter = ';';
+        else if (str.includes(',')) delimiter = ',';
+
+        if (delimiter) {
+            logCallback(`⚠️ Condensed format detected. Splitting by '${delimiter === '\t' ? 'TAB' : delimiter}'`);
+            processedData = data.map(row => {
+                if (Array.isArray(row) && row.length === 1 && typeof row[0] === 'string') {
+                    return row[0].split(delimiter);
+                }
+                return row;
+            });
+        }
+    }
+
+    // PHASE 2: FIND HEADERS
     let headerRow = null;
     let startRow = 0;
 
-    for (let i = 0; i < Math.min(20, data.length); i++) {
-        const row = data[i];
+    for (let i = 0; i < Math.min(20, processedData.length); i++) {
+        const row = processedData[i];
         if (!row || row.length === 0) continue;
 
         // Check if this row contains expected headers
         const rowStr = JSON.stringify(row).toLowerCase();
 
-        if ((rowStr.includes('concurso') && rowStr.includes('bola')) ||
-            (rowStr.includes('concurso') && rowStr.includes('dezena')) ||
+        // Match standard PT or custom EN headers
+        if ((rowStr.includes('concurso') && (rowStr.includes('bola') || rowStr.includes('dezena'))) ||
+            (rowStr.includes('contest') && rowStr.includes('number')) ||
             rowStr.includes('data do sorteio')) {
             headerRow = row;
             startRow = i + 1;
@@ -123,95 +146,143 @@ const extractMegaSenaData = (data, logCallback = console.log) => {
 
     if (!headerRow) {
         logCallback('⚠️ No clear header found in first 20 rows. Trying row 0 as fallback.');
-        headerRow = data[0];
+        headerRow = processedData[0];
         startRow = 1;
     }
 
-    // Find column indices
-    const concursoIdx = findColumnIndex(headerRow, ['concurso']);
-    const dataIdx = findColumnIndex(headerRow, ['data', 'data do sorteio', 'data sorteio']);
+    // PHASE 3: IDENTIFY COLUMNS
+    const contestIdx = findColumnIndex(headerRow, ['concurso', 'contest', 'concursonumber']);
+    const dataIdx = findColumnIndex(headerRow, ['data', 'data do sorteio', 'data sorteio', 'date']);
 
-    // Find ball/dezena columns (try both "Bola" and "Dezena")
-    const ballIndices = [];
-    for (let i = 1; i <= 6; i++) {
-        const idx = findColumnIndex(headerRow, [
-            `bola${i}`, `bola ${i}`,
-            `dezena${i}`, `dezena ${i}`,
-            `d${i}`, `b${i}`
-        ]);
-        if (idx !== -1) {
-            ballIndices.push(idx);
+    // Check for single "numbers" column (custom format) or multiple "bola" columns (standard)
+    const numbersColumnIdx = findColumnIndex(headerRow, ['numbers', 'dezenas', 'bolas']);
+
+    let ballIndices = [];
+    let isSingleColumnNumbers = false;
+
+    if (numbersColumnIdx !== -1) {
+        isSingleColumnNumbers = true;
+        logCallback(`📍 Single 'Numbers' column detected at index ${numbersColumnIdx}`);
+    } else {
+        // Standard format: look for separate columns
+        for (let i = 1; i <= 6; i++) {
+            const idx = findColumnIndex(headerRow, [
+                `bola${i}`, `bola ${i}`,
+                `dezena${i}`, `dezena ${i}`,
+                `d${i}`, `b${i}`
+            ]);
+            if (idx !== -1) {
+                ballIndices.push(idx);
+            }
         }
     }
 
-    logCallback(`📍 Indices: Concurso=${concursoIdx}, Data=${dataIdx}, Balls=[${ballIndices.join(',')}]`);
+    logCallback(`📍 Indices: Contest=${contestIdx}, Date=${dataIdx}, ` +
+        (isSingleColumnNumbers ? `NumbersCol=${numbersColumnIdx}` : `Balls=[${ballIndices.join(',')}]`));
 
-    if (concursoIdx === -1 || dataIdx === -1 || ballIndices.length < 6) {
-        logCallback('❌ Could not identify all required columns.');
-        logCallback(`Header row used: ${JSON.stringify(headerRow)}`);
-        throw new Error(`Colunas não identificadas. Concurso: ${concursoIdx}, Data: ${dataIdx}, Bolas: ${ballIndices.length}/6`);
+    if (contestIdx === -1 || dataIdx === -1) {
+        logCallback('❌ Critical columns missing (Contest or Date).');
+        throw new Error(`Colunas obrigatórias não encontradas. Concurso: ${contestIdx}, Data: ${dataIdx}`);
     }
 
+    if (!isSingleColumnNumbers && ballIndices.length < 6) {
+        logCallback('❌ Not enough ball columns found.');
+        throw new Error(`Apenas ${ballIndices.length} colunas de bolas encontradas e coluna única "Numbers" não existe.`);
+    }
+
+    // PHASE 4: EXTRACT DATA
     const draws = [];
     let validDraws = 0;
     let skippedRows = 0;
 
-    // Process data rows
-    for (let i = startRow; i < data.length; i++) {
-        const row = data[i];
+    for (let i = startRow; i < processedData.length; i++) {
+        const row = processedData[i];
 
-        // Skip empty rows
         if (!row || row.length === 0) {
             skippedRows++;
             continue;
         }
 
         try {
-            // Extract and validate - be resilient
-            const concursoValue = row[concursoIdx];
+            // 1. EXTRACT CONCURSO
+            const concursoValue = row[contestIdx];
             if (concursoValue == null || concursoValue === '') {
                 skippedRows++;
                 continue;
             }
-
             const concurso = parseInt(concursoValue);
             if (isNaN(concurso)) {
                 skippedRows++;
                 continue;
             }
 
-            // Extract data
+            // 2. EXTRACT DATA
             const dataStr = row[dataIdx];
             if (!dataStr) {
                 skippedRows++;
                 continue;
             }
 
-            // Extract dezenas
-            const dezenas = [];
-            for (const idx of ballIndices) {
-                const value = row[idx];
-                const num = parseInt(value);
-                if (isNaN(num) || num < 1 || num > 60) {
-                    throw new Error(`Invalid number: ${value}`);
+            // 3. EXTRACT DEZENAS
+            let dezenas = [];
+
+            if (isSingleColumnNumbers) {
+                // Parse from single column (e.g. "[1, 2, 3...]" or "1,2,3...")
+                let rawNums = row[numbersColumnIdx];
+                if (typeof rawNums === 'string') {
+                    rawNums = rawNums.trim();
+                    // Handle JSON array format
+                    if (rawNums.startsWith('[') && rawNums.endsWith(']')) {
+                        try {
+                            dezenas = JSON.parse(rawNums);
+                        } catch (e) {
+                            // Fallback if JSON parse fails
+                            dezenas = rawNums.replace(/[\[\]]/g, '').split(',').map(n => parseInt(n.trim()));
+                        }
+                    } else {
+                        // Handle comma separated
+                        dezenas = rawNums.split(',').map(n => parseInt(n.trim()));
+                    }
+                } else if (Array.isArray(rawNums)) {
+                    // Already an array?
+                    dezenas = rawNums;
                 }
-                dezenas.push(num);
+            } else {
+                // Standard format
+                for (const idx of ballIndices) {
+                    const value = row[idx];
+                    const num = parseInt(value);
+                    if (isNaN(num)) throw new Error(`Invalid number: ${value}`);
+                    dezenas.push(num);
+                }
             }
 
+            // Validate Dezenas
+            dezenas = dezenas.filter(n => !isNaN(n) && n > 0 && n <= 60);
             if (dezenas.length !== 6) {
-                throw new Error('Wrong number count');
+                throw new Error(`Invalid ball count: ${dezenas.length}`);
             }
 
-            // Parse date
+            // 4. PARSE DATE
             let formattedDate;
             try {
                 if (typeof dataStr === 'number') {
                     formattedDate = excelDateToJSDate(dataStr);
                 } else {
-                    formattedDate = parseBrazilianDate(dataStr);
+                    // Try Brazilian first, then ISO/Other
+                    if (String(dataStr).includes('/')) {
+                        formattedDate = parseBrazilianDate(dataStr);
+                    } else {
+                        // Try direct date parsing
+                        const d = new Date(dataStr);
+                        if (!isNaN(d.getTime())) {
+                            formattedDate = d.toISOString().split('T')[0];
+                        } else {
+                            throw new Error('Date format unknown');
+                        }
+                    }
                 }
             } catch (e) {
-                // If date fails, skip row but don't crash
                 // logCallback(`Row ${i} date error: ${e.message}`);
                 throw e;
             }
@@ -225,9 +296,8 @@ const extractMegaSenaData = (data, logCallback = console.log) => {
             validDraws++;
         } catch (error) {
             skippedRows++;
-            // Only log first few errors to avoid spamming the UI
             if (skippedRows < 5) {
-                // logCallback(`Skip row ${i}: ${error.message}`);
+                // logCallback(`Row ${i} skipped: ${error.message}`);
             }
         }
     }
@@ -235,7 +305,7 @@ const extractMegaSenaData = (data, logCallback = console.log) => {
     logCallback(`📊 Processed: ${validDraws} valid, ${skippedRows} skipped`);
 
     if (validDraws === 0) {
-        throw new Error('Nenhum sorteio válido encontrado. Verifique se o arquivo está no formato correto da Caixa.');
+        throw new Error('Nenhum sorteio válido encontrado. Verifique se o arquivo está no formato correto.');
     }
 
     // Sort by concurso number
