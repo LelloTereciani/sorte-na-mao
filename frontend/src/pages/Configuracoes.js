@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import {
   Container, Typography, Paper, Divider, TextField, Button,
   Box, Alert, CircularProgress, Stack, Chip, LinearProgress,
+  Accordion, AccordionSummary, AccordionDetails, List, ListItem, ListItemText
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
@@ -28,6 +30,12 @@ function Configuracoes() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [logs, setLogs] = useState([]);
+
+  const addLog = (msg) => {
+    const time = new Date().toLocaleTimeString();
+    setLogs(prev => [...prev, `[${time}] ${msg}`]);
+  };
 
   const handleSavePrice = () => {
     const price = parseInt(localPrice, 10);
@@ -52,17 +60,25 @@ function Configuracoes() {
     setIsUploading(true);
     setUploadProgress(0);
     setMessage({ type: '', text: '' });
+    setLogs([]); // Clear previous logs
+    addLog(`Iniciando processamento do arquivo: ${selectedFile.name}`);
 
     try {
       // Simulate progress for better UX
       setUploadProgress(20);
 
-      // Parse Excel file
-      const parsedData = await parseExcelFile(selectedFile);
+      // Parse Excel file with logging
+      addLog('Enviando arquivo para o parser...');
+      const parsedData = await parseExcelFile(selectedFile, addLog);
+
+      addLog(`Parse concluído. Total sorteios: ${parsedData.draws.length}`);
       setUploadProgress(60);
 
       // Save to localStorage
+      addLog('Salvando no banco de dados local...');
       updateDatabase(parsedData);
+
+      addLog('Banco de dados atualizado com sucesso.');
       setUploadProgress(100);
 
       setMessage({
@@ -72,6 +88,7 @@ function Configuracoes() {
 
       event.target.value = '';
     } catch (err) {
+      addLog(`❌ ERRO: ${err.message}`);
       setMessage({
         type: 'error',
         text: `Falha ao carregar base: ${err.message}`
@@ -287,6 +304,35 @@ function Configuracoes() {
           <Alert severity={message.type} sx={{ mt: 3 }}>
             {message.text}
           </Alert>
+        )}
+
+        {/* Debug Logs Section - Visible if there are logs */}
+        {logs.length > 0 && (
+          <Accordion sx={{ mt: 3, bgcolor: 'background.default' }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Typography variant="caption" color="text.secondary">
+                Logs de Processamento ({logs.length})
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Paper variant="outlined" sx={{ p: 2, maxHeight: '300px', overflow: 'auto', bgcolor: 'grey.100' }}>
+                <List dense disablePadding>
+                  {logs.map((log, index) => (
+                    <ListItem key={index} disablePadding divider>
+                      <ListItemText
+                        primary={log}
+                        primaryTypographyProps={{
+                          variant: 'caption',
+                          fontFamily: 'monospace',
+                          color: log.includes('❌') ? 'error' : 'text.primary'
+                        }}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              </Paper>
+            </AccordionDetails>
+          </Accordion>
         )}
       </Paper>
     </Container>
